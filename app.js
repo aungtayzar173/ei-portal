@@ -1386,13 +1386,15 @@ async function adminRoles(body) {
   }
   const roles = ["pending", "member", "deputy", "admin", "rejected"];
   body.innerHTML = '<div class="card"><h2>🔑 Role စီမံရန်</h2>' +
-    '<p class="note">Role ပြောင်းခြင်းကို Admin တစ်ဦးတည်းသာ လုပ်နိုင်သည်။ ဒုတိယ (deputy) များမှာ အဖွဲ့ဝင်များဘက်တွင် သာမန် အဖွဲ့ဝင် အဖြစ်သာ ပေါ်သည်။</p>' +
+    '<p class="note">Role ပြောင်းခြင်းကို Admin တစ်ဦးတည်းသာ လုပ်နိုင်သည်။ ဒုတိယ (deputy) များမှာ အဖွဲ့ဝင်များဘက်တွင် သာမန် အဖွဲ့ဝင် အဖြစ်သာ ပေါ်သည်။ "ဖျက်" = မှတ်တမ်းကို အပြား ဖျက်သည် (၂ ခါ နှိပ် အတည်ပြုရသည်)။</p>' +
     list.map(u =>
       '<div class="rowline"><div class="who"><b>' + esc(u.name || "—") + "</b>" +
       '<span class="note">' + esc(u.email || "") + "</span></div>" +
       '<div class="acts"><select id="role-' + u.uid + '">' +
       roles.map(r => '<option value="' + r + '"' + (u.role === r ? " selected" : "") + ">" + r + "</option>").join("") +
-      '</select><button class="ok" data-role-save="' + u.uid + '">သိမ်း</button></div></div>').join("") +
+      '</select><button class="ok" data-role-save="' + u.uid + '">သိမ်း</button>' +
+      (u.uid !== (state.user && state.user.uid) ? '<button class="no" data-role-del="' + u.uid + '">ဖျက်</button>' : '') +
+      '</div></div>').join("") +
     msgHtml("ro-msg") + "</div>";
   body.querySelectorAll("[data-role-save]").forEach(b =>
     b.addEventListener("click", async () => {
@@ -1402,6 +1404,22 @@ async function adminRoles(body) {
         await updateDoc(doc(db, "users", uid), { role: sel.value });
         showMsg("ro-msg", "✔ Role ပြောင်းပြီးပါပြီ။", "good");
         if (uid === state.user.uid) { state.profile.role = sel.value; }
+      } catch (e) { showMsg("ro-msg", friendlyError(e), "err"); }
+    }));
+  // မှတ်တမ်း အပြား ဖျက် (၂ ခါ နှိပ် အတည်ပြု — native confirm မသုံး)
+  body.querySelectorAll("[data-role-del]").forEach(b =>
+    b.addEventListener("click", async () => {
+      const uid = b.getAttribute("data-role-del");
+      if (b.getAttribute("data-armed") !== "1") {
+        b.setAttribute("data-armed", "1");
+        b.textContent = "ဖျက်မှာ သေချာလား?";
+        setTimeout(() => { b.removeAttribute("data-armed"); b.textContent = "ဖျက်"; }, 4000);
+        return;
+      }
+      try {
+        await deleteDoc(doc(db, "users", uid));
+        await adminRoles(body);
+        showMsg("ro-msg", "✔ မှတ်တမ်း ဖျက်ပြီးပါပြီ။", "good");
       } catch (e) { showMsg("ro-msg", friendlyError(e), "err"); }
     }));
 }
