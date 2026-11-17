@@ -587,37 +587,33 @@ function viewLogin(view) {
     if (!name || !email || !pass) return showMsg("rg-msg", "အမည်၊ Email နှင့် Password (* အမှတ်ပါသောအကွက်) ဖြည့်ပါ။", "err");
     const btn = document.getElementById("rg-btn");
     btn.disabled = true;
-    // ===== TEMP DEBUG (2026-11-17): step-by-step registration trace shown on page =====
-    const dbg = [];
-    const showDbg = () => {
-      let el = document.getElementById("dbg-out");
-      if (!el) { el = document.createElement("div"); el.id = "dbg-out"; el.style.cssText = "position:fixed;inset:auto 0 0 0;z-index:9999;background:#fff;color:#000;font:12px monospace;padding:8px;white-space:pre-wrap;border-top:3px solid red;max-height:55vh;overflow:auto"; document.body.appendChild(el); }
-      el.textContent = "DBGOUT\n" + dbg.join("\n");
-    };
     try {
-      dbg.push("values: name=[" + name + "] phone=[" + phone + "] pos=[" + position + "] region=[" + region + "]"); showDbg();
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      dbg.push("createUser OK uid=" + cred.user.uid); showDbg();
+      // Profile ကို ဒီ handler ကပဲ တိုက်ရိုက် ရေးတယ် (ensureProfile လမ်းကြောင်း မှာ form data ပျောက်တဲ့ ပြဿနာ ကြောင့်)
       const ref = doc(db, "users", cred.user.uid);
       const snap = await getDoc(ref);
-      dbg.push("getDoc exists=" + snap.exists()); showDbg();
+      let prof;
       if (snap.exists()) {
-        dbg.push("existing data=" + JSON.stringify(snap.data())); showDbg();
-        try { await updateDoc(ref, { name, phone, position, region }); dbg.push("updateDoc OK"); }
-        catch (e2) { dbg.push("updateDoc ERR " + (e2.code || "") + " " + (e2.message || e2)); }
-        showDbg();
+        await updateDoc(ref, { name, phone, position, region });
+        prof = Object.assign({}, snap.data(), { name, phone, position, region });
       } else {
-        const profile = { name, email, phone, position, region, role: isSuper() ? "admin" : "pending", disabled: false, createdAt: serverTimestamp() };
-        try { await setDoc(ref, profile); dbg.push("setDoc OK"); }
-        catch (e3) { dbg.push("setDoc ERR " + (e3.code || "") + " " + (e3.message || e3)); }
-        showDbg();
+        prof = { name, email, phone, position, region, role: "pending", disabled: false, createdAt: serverTimestamp() };
+        await setDoc(ref, prof);
       }
-      const snap2 = await getDoc(ref);
-      dbg.push("verify read-back: " + JSON.stringify(snap2.exists() ? snap2.data() : null)); showDbg();
-      dbg.push("DONE — staying on page for debug read"); showDbg();
+      // ပြန်ဖတ် အတည်ပြု — မရောက်သေးရင် တစ်ကြိမ် ထပ်ဖြည့်
+      const chk = await getDoc(ref);
+      if (chk.exists() && !String(chk.data().name || "").trim()) {
+        await updateDoc(ref, { name, phone, position, region });
+        prof = Object.assign({}, chk.data(), { name, phone, position, region });
+      } else if (chk.exists()) {
+        prof = chk.data();
+      }
+      state.profile = prof;
+      maybeNotifyNewRegistration(prof);
+      navTo("#/waiting");
     } catch (e) {
-      dbg.push("HANDLER ERR " + (e.code || "") + " " + (e.message || e)); showDbg();
       btn.disabled = false;
+      showMsg("rg-msg", friendlyError(e), "err");
     }
   });
 }
