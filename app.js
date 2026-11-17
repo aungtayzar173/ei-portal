@@ -1392,7 +1392,12 @@ onAuthStateChanged(auth, async user => {
   state.user = user;
   state.profile = null;
   if (user) {
-    try { await ensureProfile(user, {}); } catch (e) { state.profile = null; }
+    // Read-only load: profile ဖန်တီး/ဖြည့်တာကို register/google handler တွေကသာ လုပ်တယ်။
+    // (Listener က blank profile နဲ့ ပြိုင်ရေးမိပြီး form data ကို ဖျက်မိတဲ့ race ကို ဖယ်ရှား)
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (snap.exists()) state.profile = snap.data();
+    } catch (e) { state.profile = null; }
   }
   state.authReady = true;
   render();
